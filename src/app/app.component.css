@@ -1,0 +1,55 @@
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+/* Style for pattern text */
+span.bg-warning {
+  transition: background-color 0.2s;
+}
+
+span.bg-warning:hover {
+  background-color: #f5b64a !important;
+  cursor: pointer;
+}
+
+/* Add custom styling for buttons */
+.btn-group .btn {
+  margin-right: 2px;
+}
+
+/* Style for the monospace regex */
+.font-monospace {
+  padding: 10px;
+  background-color: #f8f9fa;
+  overflow-x: auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .btn-group {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .btn-group .btn {
+    margin-right: 0;
+    margin-bottom: 5px;
+  }
+}
+
+/* Animation for the customization panel */
+.list-group-item {
+  transition: all 0.3s ease;
+}
+
+/* Test area styling */
+textarea {
+  resize: vertical;
+}
