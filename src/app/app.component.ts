@@ -6,6 +6,7 @@ interface PatternSegment {
   end: number;
   type: string;
   isPattern: boolean;
+  repeatingChars?: { char: string, count: number }[]; // Added for repeating characters
 }
 
 @Component({
@@ -76,6 +77,30 @@ export class AppComponent implements OnInit {
     // Initialize empty state
   }
 
+  // Find repeating characters in a string
+  findRepeatingCharacters(text: string): { char: string, count: number }[] {
+    const result: { char: string, count: number }[] = [];
+    let currentChar = '';
+    let count = 1;
+    
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] === text[i + 1]) {
+        // Same character continues
+        currentChar = text[i];
+        count++;
+      } else if (currentChar) {
+        // Character streak ends
+        if (count > 1) {
+          result.push({ char: currentChar, count });
+        }
+        currentChar = '';
+        count = 1;
+      }
+    }
+    
+    return result;
+  }
+
   processSampleText(): void {
     if (!this.sampleText.trim()) {
       return;
@@ -99,12 +124,16 @@ export class AppComponent implements OnInit {
         const match = remainingText.match(pattern);
         
         if (match && match[0]) {
+          // Check for repeating characters in this pattern segment
+          const repeatingChars = this.findRepeatingCharacters(match[0]);
+          
           this.processedText.push({
             text: match[0],
             start: currentPosition,
             end: currentPosition + match[0].length,
             type: patternName,
-            isPattern: true
+            isPattern: true,
+            repeatingChars: repeatingChars.length > 0 ? repeatingChars : undefined
           });
           
           currentPosition += match[0].length;
@@ -172,7 +201,8 @@ export class AppComponent implements OnInit {
     let defaultOptions = {
       matchType: 'arbitrary', // arbitrary or exact
       case: 'preserve', // preserve, uppercase, lowercase, any
-      detectRepeats: false,
+      detectRepeats: pattern.repeatingChars && pattern.repeatingChars.length > 0, // Default to true if repeats detected
+      handleRepeats: 'exact', // exact or arbitrary - new option for repeating characters
       quantifier: 'exact', // exact, oneOrMore, zeroOrMore
     };
     
@@ -299,6 +329,56 @@ export class AppComponent implements OnInit {
     
     let result = '';
     
+    // Handle repeating characters case first if enabled
+    if (options.detectRepeats && pattern.repeatingChars && pattern.repeatingChars.length > 0) {
+      if (pattern.type === 'digits' || pattern.type === 'letters' || pattern.type === 'alphanumeric') {
+        if (options.handleRepeats === 'exact') {
+          // Use the exact string with repeating characters
+          return this.escapeRegex(pattern.text);
+        } else {
+          // Create a pattern that matches the structure but allows arbitrary repeating characters
+          let structureRegex = '';
+          let currentPos = 0;
+          
+          // Process each repeating character group
+          for (const repeat of pattern.repeatingChars) {
+            // Find position of this repeating sequence
+            const repeatStart = pattern.text.indexOf(repeat.char.repeat(repeat.count), currentPos);
+            
+            // Add text before repeating sequence
+            if (repeatStart > currentPos) {
+              const beforeText = pattern.text.substring(currentPos, repeatStart);
+              structureRegex += this.escapeRegex(beforeText);
+            }
+            
+            // Add the repeating pattern
+            if (repeat.char >= '0' && repeat.char <= '9') {
+              structureRegex += `(\\d)\\1{${repeat.count - 1}}`;
+            } else if (/[A-Za-z]/.test(repeat.char)) {
+              if (repeat.char === repeat.char.toUpperCase()) {
+                structureRegex += `([A-Z])\\1{${repeat.count - 1}}`;
+              } else {
+                structureRegex += `([a-z])\\1{${repeat.count - 1}}`;
+              }
+            } else {
+              // For other characters, just use exact match
+              structureRegex += this.escapeRegex(repeat.char.repeat(repeat.count));
+            }
+            
+            currentPos = repeatStart + repeat.count;
+          }
+          
+          // Add remaining text after last repeating sequence
+          if (currentPos < pattern.text.length) {
+            structureRegex += this.escapeRegex(pattern.text.substring(currentPos));
+          }
+          
+          return structureRegex;
+        }
+      }
+    }
+    
+    // If we're not handling repeats or there are no repeats, use standard pattern generation
     // Handle match type
     if (options.matchType === 'exact') {
       result = this.escapeRegex(pattern.text);
