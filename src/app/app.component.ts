@@ -1,12 +1,39 @@
-import { Component, OnInit, HostListener } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+
+interface CharacterAnalysis {
+  char: string;
+  type: 'digit' | 'letter' | 'special';
+  isRepeating: boolean;
+  selected: boolean;
+  position: number;
+}
+
+interface PatternGroup {
+  pattern: string;
+  matches: string[];
+  indices: number[];
+  options: PatternOptions;
+}
+
+interface PatternOptions {
+  patternType: 'exact' | 'repeating' | 'type';
+  matchType: 'digit' | 'letter' | 'alphanumeric' | 'any';
+  quantifier: 'exact' | 'oneOrMore' | 'zeroOrMore' | 'custom';
+  minRepeat?: number;
+  maxRepeat?: number;
+}
 
 interface PatternSegment {
-  text: string;
-  start: number;
-  end: number;
+  startPos: number;
+  length: number;
   type: string;
-  isPattern: boolean;
-  repeatingChars?: { char: string, count: number }[]; // Added for repeating characters
+  isRepeating: boolean;
+  description: string;
+}
+
+interface RecognizedPattern {
+  segments: PatternSegment[];
+  pattern: string;
 }
 
 @Component({
@@ -15,477 +42,307 @@ interface PatternSegment {
   styleUrls: ['./app.component.css']
 })
 export class AppComponent implements OnInit {
-  title = 'regex-generator';
-
-  // Text input and processing
   sampleText: string = '';
-  testText: string = '';
+  analyzedChars: string[] = [];
+  selectedChars: Set<number> = new Set();
+  recognizedPatterns: RecognizedPattern[] = [];
   generatedRegex: string = '';
-  processedText: PatternSegment[] = [];
-  selectedPatterns: number[] = [];
-  testMatches: string[] = [];
-  
-  // Pattern customization
-  patternCustomizations: { [key: number]: any } = {};
-  activeDropdownIndex: number | null = null;
-  
-  // Global options
-  onlyPatterns: boolean = false;
-  matchWholeLine: boolean = false;
-  captureGroups: boolean = false;
-  
-  // UI state management
-  currentStep: number = 1;
-  
-  // Helper methods for the single-step UI
+
+  patternGroups: PatternGroup[] = [];
+
+  // Pattern Options
+  currentPatternType: 'exact' | 'repeating' | 'type' = 'exact';
+  currentMatchType: 'digit' | 'letter' | 'alphanumeric' | 'any' = 'any';
+  currentQuantifier: 'exact' | 'oneOrMore' | 'zeroOrMore' | 'custom' = 'exact';
+  quantifierMin: number = 1;
+  quantifierMax: number = 1;
+  editingGroupIndex: number | null = null;
+
+
+  ngOnInit() {}
+
   onTextInputChange(): void {
-    // Auto-identify patterns as the user types if text is not too long
-    if (this.sampleText.length < 100) {
+    if (this.sampleText.length > 0) {
       this.processSampleText();
     }
   }
-  
-  copyRegexToClipboard(): void {
-    navigator.clipboard.writeText(this.generatedRegex)
-      .then(() => {
-        // Could add a toast notification here
-        console.log('Copied to clipboard');
-      })
-      .catch(err => {
-        console.error('Could not copy text: ', err);
-      });
-  }
-  
-  // Pattern types and their regex
-  patternTypes: { [key: string]: string } = {
-    'digits': '\\d+',
-    'letters': '[A-Za-z]+',
-    'alphanumeric': '[A-Za-z0-9]+',
-    'whitespace': '\\s+',
-    'email': '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}',
-    'url': '(https?://)?[a-zA-Z0-9][-a-zA-Z0-9.]+[a-zA-Z0-9](/[-a-zA-Z0-9%_.~#?&=]*)?',
-    'date': '\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4}',
-    'time': '\\d{1,2}:\\d{2}(:\\d{2})?',
-    'ip': '\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}',
-    'repeated_digits': '(\\d)\\1+',
-    'repeated_letters': '([A-Za-z])\\1+'
-  };
-
-  constructor() {}
-
-  ngOnInit(): void {
-    // Initialize empty state
-  }
-
-  // Find repeating characters in a string
-  findRepeatingCharacters(text: string): { char: string, count: number }[] {
-    const result: { char: string, count: number }[] = [];
-    let currentChar = '';
-    let count = 1;
-    
-    for (let i = 0; i < text.length; i++) {
-      if (text[i] === text[i + 1]) {
-        // Same character continues
-        currentChar = text[i];
-        count++;
-      } else if (currentChar) {
-        // Character streak ends
-        if (count > 1) {
-          result.push({ char: currentChar, count });
-        }
-        currentChar = '';
-        count = 1;
-      }
-    }
-    
-    return result;
-  }
 
   processSampleText(): void {
-    if (!this.sampleText.trim()) {
-      return;
-    }
-    
-    this.processedText = [];
-    this.selectedPatterns = [];
-    this.patternCustomizations = {};
-    
-    let currentPosition = 0;
-    const text = this.sampleText;
-    
-    // Pattern detection algorithm
-    while (currentPosition < text.length) {
-      let matchFound = false;
-      
-      // Check for each pattern type
-      for (const [patternName, regex] of Object.entries(this.patternTypes)) {
-        const pattern = new RegExp('^' + regex);
-        const remainingText = text.substring(currentPosition);
-        const match = remainingText.match(pattern);
-        
-        if (match && match[0]) {
-          // Check for repeating characters in this pattern segment
-          const repeatingChars = this.findRepeatingCharacters(match[0]);
-          
-          this.processedText.push({
-            text: match[0],
-            start: currentPosition,
-            end: currentPosition + match[0].length,
-            type: patternName,
-            isPattern: true,
-            repeatingChars: repeatingChars.length > 0 ? repeatingChars : undefined
-          });
-          
-          currentPosition += match[0].length;
-          matchFound = true;
-          break;
-        }
-      }
-      
-      // If no pattern matched, treat as plain text
-      if (!matchFound) {
-        let plainTextEnd = currentPosition + 1;
-        
-        // Look ahead to find the next potential pattern start
-        for (let i = plainTextEnd; i < text.length; i++) {
-          let mightBePattern = false;
-          
-          for (const regex of Object.values(this.patternTypes)) {
-            if (new RegExp('^' + regex).test(text.substring(i))) {
-              mightBePattern = true;
-              break;
-            }
-          }
-          
-          if (mightBePattern) {
-            plainTextEnd = i;
-            break;
-          } else if (i === text.length - 1) {
-            plainTextEnd = text.length;
-          }
-        }
-        
-        this.processedText.push({
-          text: text.substring(currentPosition, plainTextEnd),
-          start: currentPosition,
-          end: plainTextEnd,
-          type: 'plain',
-          isPattern: false
-        });
-        
-        currentPosition = plainTextEnd;
-      }
-    }
-    
-    this.currentStep = 2;
+    this.analyzedChars = this.sampleText.split('');
+    this.selectedChars.clear();
+    this.patternGroups = [];
+    this.editingGroupIndex = null;
   }
 
-  togglePattern(index: number): void {
-    const patternIndex = this.selectedPatterns.indexOf(index);
-    
-    if (patternIndex === -1) {
-      this.selectedPatterns.push(index);
-      // Initialize customization options for this pattern
-      this.initializePatternOptions(index);
-    } else {
-      this.selectedPatterns.splice(patternIndex, 1);
-      // Clean up customization options
-      delete this.patternCustomizations[index];
-    }
-    
-    this.generateRegex();
-  }
-
-  initializePatternOptions(index: number): void {
-    const pattern = this.processedText[index];
-    let defaultOptions = {
-      matchType: 'arbitrary', // arbitrary or exact
-      case: 'preserve', // preserve, uppercase, lowercase, any
-      detectRepeats: pattern.repeatingChars && pattern.repeatingChars.length > 0, // Default to true if repeats detected
-      handleRepeats: 'exact', // exact or arbitrary - new option for repeating characters
-      quantifier: 'exact', // exact, oneOrMore, zeroOrMore
-    };
-    
-    // Set specific defaults based on pattern type
-    if (pattern.type === 'digits') {
-      defaultOptions.case = 'any'; // Case doesn't apply to digits
-    }
-    
-    // Check if the pattern text is all uppercase
-    if (pattern.text === pattern.text.toUpperCase() && pattern.text !== pattern.text.toLowerCase()) {
-      defaultOptions.case = 'uppercase';
-    }
-    
-    // Check if the pattern text is all lowercase
-    if (pattern.text === pattern.text.toLowerCase() && pattern.text !== pattern.text.toUpperCase()) {
-      defaultOptions.case = 'lowercase';
-    }
-    
-    this.patternCustomizations[index] = defaultOptions;
-  }
-
-  showPatternOptions(index: number, event: MouseEvent): void {
-    event.stopPropagation();
-    this.activeDropdownIndex = index;
-  }
-
-  closePatternOptions(event: MouseEvent): void {
-    event.stopPropagation();
-    this.activeDropdownIndex = null;
-  }
   
-  @HostListener('document:click')
-  onDocumentClick(): void {
-    // Close dropdown when clicking outside
-    this.activeDropdownIndex = null;
-  }
 
-  isPatternSelected(index: number): boolean {
-    return this.selectedPatterns.includes(index);
-  }
+  analyzePatterns(): void {
+    this.recognizedPatterns = [];
+    const patterns: RecognizedPattern[] = [];
 
-  getPatternOption(index: number, option: string): any {
-    if (!this.patternCustomizations[index]) {
-      return null;
+    // Analyze digit sequences
+    let currentPattern: PatternSegment[] = [];
+    let isInDigitSequence = false;
+    let sequenceStart = 0;
+
+    for (let i = 0; i < this.analyzedChars.length; i++) {
+      const char = this.analyzedChars[i];
+      const isDigit = /\d/.test(char);
+
+      if (isDigit && !isInDigitSequence) {
+        isInDigitSequence = true;
+        sequenceStart = i;
+      } else if (!isDigit && isInDigitSequence) {
+        currentPattern.push({
+          startPos: sequenceStart,
+          length: i - sequenceStart,
+          type: 'digit',
+          isRepeating: false,
+          description: 'Digit sequence'
+        });
+        isInDigitSequence = false;
+      }
     }
-    return this.patternCustomizations[index][option];
-  }
 
-  setPatternOption(index: number, option: string, value: Event): void {
-    if (!this.patternCustomizations[index]) {
-      this.initializePatternOptions(index);
+    if (isInDigitSequence) {
+      currentPattern.push({
+        startPos: sequenceStart,
+        length: this.analyzedChars.length - sequenceStart,
+        type: 'digit',
+        isRepeating: false,
+        description: 'Digit sequence'
+      });
     }
-    const target = value.target as HTMLInputElement | HTMLSelectElement;
-    this.patternCustomizations[index][option] = 'checked' in target ? target.checked : target.value;
-    this.generateRegex();
+
+    if (currentPattern.length > 0) {
+      patterns.push({ segments: currentPattern, pattern: '\\d+' });
+    }
+
+    // Analyze repeating characters
+    for (let i = 0; i < this.analyzedChars.length; i++) {
+      if (this.isRepeatingChar(i)) {
+        const char = this.analyzedChars[i];
+        let repeatLength = 1;
+        while (i + repeatLength < this.analyzedChars.length && 
+               this.analyzedChars[i + repeatLength] === char) {
+          repeatLength++;
+        }
+
+        patterns.push({
+          segments: [{
+            startPos: i,
+            length: repeatLength,
+            type: /\d/.test(char) ? 'digit' : /[a-zA-Z]/.test(char) ? 'letter' : 'special',
+            isRepeating: true,
+            description: `Repeating '${char}'`
+          }],
+          pattern: `(${this.escapeRegex(char)})\\1{${repeatLength - 1}}`
+        });
+      }
+    }
+
+    this.recognizedPatterns = patterns;
   }
 
-  generateRegex(): void {
-    if (this.selectedPatterns.length === 0) {
+  toggleCharSelection(index: number): void {
+    if (this.selectedChars.has(index)) {
+      this.selectedChars.delete(index);
+    } else {
+      this.selectedChars.add(index);
+    }
+  }
+  isCharSelected(index: number): boolean {
+    return this.selectedChars.has(index);
+  }
+
+  isCharInGroup(index: number): boolean {
+    return this.patternGroups.some(group => group.indices.includes(index));
+  }
+
+
+
+  getCharacterType(index: number): 'digit' | 'letter' | 'special' {
+    const char = this.analyzedChars[index];
+    if (/\d/.test(char)) return 'digit';
+    if (/[a-zA-Z]/.test(char)) return 'letter';
+    return 'special';
+  }
+
+  isRepeatingChar(index: number): boolean {
+    if (index === 0) return this.analyzedChars[0] === this.analyzedChars[1];
+    if (index === this.analyzedChars.length - 1) {
+      return this.analyzedChars[index] === this.analyzedChars[index - 1];
+    }
+    return this.analyzedChars[index] === this.analyzedChars[index - 1] ||
+           this.analyzedChars[index] === this.analyzedChars[index + 1];
+  }
+
+  getCharacterStyle(index: number): any {
+    const styles: any = {};
+    if (this.isRepeatingChar(index)) {
+      styles.borderBottom = '2px solid rgba(220, 53, 69, 0.5)';
+    }
+    return styles;
+  }
+
+
+  hasSelectedChars(): boolean {
+    return this.selectedChars.size > 0;
+  }
+
+
+ 
+
+  updatePattern(): void {
+    if (this.selectedChars.size === 0) {
       this.generatedRegex = '';
       return;
     }
-    
-    let regex = '';
-    let lastEnd = 0;
-    
-    // Sort selected patterns by position
-    const sortedPatterns = [...this.selectedPatterns].sort((a, b) => 
-      this.processedText[a].start - this.processedText[b].start
-    );
-    
-    if (this.matchWholeLine) {
-      regex += '^';
-    }
-    
-    for (const index of sortedPatterns) {
-      const pattern = this.processedText[index];
-      
-      // Include text between patterns if not using "only patterns" option
-      if (!this.onlyPatterns && pattern.start > lastEnd) {
-        const textBetween = this.escapeRegex(
-          this.sampleText.substring(lastEnd, pattern.start)
-        );
-        regex += textBetween;
+
+    const selectedIndices = Array.from(this.selectedChars).sort((a, b) => a - b);
+    let pattern = '';
+
+    if (this.currentPatternType === 'exact') {
+      pattern = selectedIndices
+        .map(i => this.escapeRegex(this.analyzedChars[i]))
+        .join('');
+    } else if (this.currentPatternType === 'repeating') {
+      pattern = `(${this.escapeRegex(this.analyzedChars[selectedIndices[0]])})\\1+`;
+    } else {
+      let charClass = '';
+      switch (this.currentMatchType) {
+        case 'digit': charClass = '\\d'; break;
+        case 'letter': charClass = '[a-zA-Z]'; break;
+        case 'alphanumeric': charClass = '[a-zA-Z0-9]'; break;
+        case 'any': charClass = '.'; break;
       }
-      
-      // Start capture group if enabled
-      if (this.captureGroups) {
-        regex += '(';
+      pattern = charClass;
+    }
+
+    // Apply quantifier
+    if (this.currentQuantifier !== 'exact' || this.currentPatternType === 'type') {
+      pattern = pattern.replace(/[+*]$/, '');
+      switch (this.currentQuantifier) {
+        case 'oneOrMore': pattern += '+'; break;
+        case 'zeroOrMore': pattern += '*'; break;
+        case 'custom': 
+          pattern += `{${this.quantifierMin},${this.quantifierMax}}`; break;
+        case 'exact':
+          pattern += `{${selectedIndices.length}}`; break;
       }
-      
-      // Generate the pattern based on customization options
-      let patternRegex = this.generateCustomizedPattern(index);
-      regex += patternRegex;
-      
-      // End capture group if enabled
-      if (this.captureGroups) {
-        regex += ')';
-      }
-      
-      lastEnd = pattern.end;
     }
-    
-    // Add any remaining text after the last pattern if not using "only patterns"
-    if (!this.onlyPatterns && lastEnd < this.sampleText.length) {
-      regex += this.escapeRegex(this.sampleText.substring(lastEnd));
-    }
-    
-    if (this.matchWholeLine) {
-      regex += '$';
-    }
-    
-    this.generatedRegex = regex;
-    this.testRegex();
+
+    this.generatedRegex = pattern;
   }
 
-  generateCustomizedPattern(index: number): string {
-    const pattern = this.processedText[index];
-    const options = this.patternCustomizations[index];
-    
-    if (!options) {
-      return this.patternTypes[pattern.type];
-    }
-    
-    let result = '';
-    
-    // Handle repeating characters case first if enabled
-    if (options.detectRepeats && pattern.repeatingChars && pattern.repeatingChars.length > 0) {
-      if (pattern.type === 'digits' || pattern.type === 'letters' || pattern.type === 'alphanumeric') {
-        if (options.handleRepeats === 'exact') {
-          // Use the exact string with repeating characters
-          return this.escapeRegex(pattern.text);
-        } else {
-          // Create a pattern that matches the structure but allows arbitrary repeating characters
-          let structureRegex = '';
-          let currentPos = 0;
-          
-          // Process each repeating character group
-          for (const repeat of pattern.repeatingChars) {
-            // Find position of this repeating sequence
-            const repeatStart = pattern.text.indexOf(repeat.char.repeat(repeat.count), currentPos);
-            
-            // Add text before repeating sequence
-            if (repeatStart > currentPos) {
-              const beforeText = pattern.text.substring(currentPos, repeatStart);
-              structureRegex += this.escapeRegex(beforeText);
-            }
-            
-            // Add the repeating pattern
-            if (repeat.char >= '0' && repeat.char <= '9') {
-              structureRegex += `(\\d)\\1{${repeat.count - 1}}`;
-            } else if (/[A-Za-z]/.test(repeat.char)) {
-              if (repeat.char === repeat.char.toUpperCase()) {
-                structureRegex += `([A-Z])\\1{${repeat.count - 1}}`;
-              } else {
-                structureRegex += `([a-z])\\1{${repeat.count - 1}}`;
-              }
-            } else {
-              // For other characters, just use exact match
-              structureRegex += this.escapeRegex(repeat.char.repeat(repeat.count));
-            }
-            
-            currentPos = repeatStart + repeat.count;
-          }
-          
-          // Add remaining text after last repeating sequence
-          if (currentPos < pattern.text.length) {
-            structureRegex += this.escapeRegex(pattern.text.substring(currentPos));
-          }
-          
-          return structureRegex;
-        }
-      }
-    }
-    
-    // If we're not handling repeats or there are no repeats, use standard pattern generation
-    // Handle match type
-    if (options.matchType === 'exact') {
-      result = this.escapeRegex(pattern.text);
+  generatePattern(): string {
+    const selectedIndices = Array.from(this.selectedChars).sort((a, b) => a - b);
+    let pattern = '';
+
+    if (this.currentPatternType === 'exact') {
+      pattern = selectedIndices
+        .map(i => this.escapeRegex(this.analyzedChars[i]))
+        .join('');
+    } else if (this.currentPatternType === 'repeating') {
+      pattern = `(${this.escapeRegex(this.analyzedChars[selectedIndices[0]])})\\1+`;
     } else {
-      // Handle case sensitivity for character patterns
-      if (pattern.type === 'letters' || pattern.type === 'alphanumeric') {
-        if (options.case === 'uppercase') {
-          result = '[A-Z]';
-        } else if (options.case === 'lowercase') {
-          result = '[a-z]';
-        } else if (options.case === 'any') {
-          result = '[A-Za-z]';
-        } else { // preserve
-          // Analyze the pattern and create a character class that matches the case pattern
-          result = this.createPreserveCasePattern(pattern.text);
-        }
-        
-        // Handle alphanumeric
-        if (pattern.type === 'alphanumeric') {
-          result = result.replace('[A-Z]', '[A-Z0-9]').replace('[a-z]', '[a-z0-9]').replace('[A-Za-z]', '[A-Za-z0-9]');
-        }
-      } else if (options.detectRepeats && (pattern.type === 'digits' || pattern.type === 'letters')) {
-        // Handle repeating characters detection
-        if (pattern.type === 'digits') {
-          result = '(\\d)\\1+';
-        } else { // letters
-          if (options.case === 'uppercase') {
-            result = '([A-Z])\\1+';
-          } else if (options.case === 'lowercase') {
-            result = '([a-z])\\1+';
-          } else {
-            result = '([A-Za-z])\\1+';
-          }
-        }
-      } else {
-        // Use the default pattern for this type
-        result = this.patternTypes[pattern.type];
+      let charClass = '';
+      switch (this.currentMatchType) {
+        case 'digit': charClass = '\\d'; break;
+        case 'letter': charClass = '[a-zA-Z]'; break;
+        case 'alphanumeric': charClass = '[a-zA-Z0-9]'; break;
+        case 'any': charClass = '.'; break;
+      }
+      pattern = charClass;
+    }
+
+    // Apply quantifier
+    if (this.currentQuantifier !== 'exact' || this.currentPatternType === 'type') {
+      pattern = pattern.replace(/[+*]$/, '');
+      switch (this.currentQuantifier) {
+        case 'oneOrMore': pattern += '+'; break;
+        case 'zeroOrMore': pattern += '*'; break;
+        case 'custom': 
+          pattern += `{${this.quantifierMin},${this.quantifierMax}}`; break;
+        case 'exact':
+          pattern += `{${selectedIndices.length}}`; break;
       }
     }
-    
-    // Handle quantifiers
-    if (options.matchType !== 'exact' && options.quantifier !== 'oneOrMore' && !options.detectRepeats) {
-      // Remove any existing quantifiers first
-      result = result.replace(/[+*]$/, '');
-      
-      if (options.quantifier === 'exact') {
-        result += `{${pattern.text.length}}`;
-      } else if (options.quantifier === 'zeroOrMore') {
-        result += '*';
-      } else {
-        result += '+';
-      }
-    }
-    
-    return result;
+
+    return pattern;
   }
 
-  createPreserveCasePattern(text: string): string {
-    let hasUpper = false;
-    let hasLower = false;
-    
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-      if (char >= 'A' && char <= 'Z') {
-        hasUpper = true;
-      } else if (char >= 'a' && char <= 'z') {
-        hasLower = true;
+  createNewGroup(): void {
+    if (this.selectedChars.size === 0) return;
+
+    const pattern = this.generatePattern();
+    const indices = Array.from(this.selectedChars).sort((a, b) => a - b);
+    const matches = [this.getSelectedText()];
+
+    const group: PatternGroup = {
+      pattern,
+      matches,
+      indices,
+      options: {
+        patternType: this.currentPatternType,
+        matchType: this.currentMatchType,
+        quantifier: this.currentQuantifier,
+        minRepeat: this.quantifierMin,
+        maxRepeat: this.quantifierMax
       }
-    }
-    
-    if (hasUpper && hasLower) {
-      return '[A-Za-z]';
-    } else if (hasUpper) {
-      return '[A-Z]';
+    };
+
+    if (this.editingGroupIndex !== null) {
+      this.patternGroups[this.editingGroupIndex] = group;
+      this.editingGroupIndex = null;
     } else {
-      return '[a-z]';
+      this.patternGroups.push(group);
     }
+
+    this.selectedChars.clear();
+    this.resetOptions();
+  }
+
+  resetOptions(): void {
+    this.currentPatternType = 'exact';
+    this.currentMatchType = 'any';
+    this.currentQuantifier = 'exact';
+    this.quantifierMin = 1;
+    this.quantifierMax = 1;
+  }
+
+  getSelectedText(): string {
+    return Array.from(this.selectedChars)
+      .sort((a, b) => a - b)
+      .map(i => this.analyzedChars[i])
+      .join('');
+  }
+
+  editGroup(index: number): void {
+    const group = this.patternGroups[index];
+    this.selectedChars = new Set(group.indices);
+    this.currentPatternType = group.options.patternType;
+    this.currentMatchType = group.options.matchType;
+    this.currentQuantifier = group.options.quantifier;
+    this.quantifierMin = group.options.minRepeat || 1;
+    this.quantifierMax = group.options.maxRepeat || 1;
+    this.editingGroupIndex = index;
+  }
+
+  removeGroup(index: number): void {
+    this.patternGroups.splice(index, 1);
+    if (this.editingGroupIndex === index) {
+      this.editingGroupIndex = null;
+      this.selectedChars.clear();
+      this.resetOptions();
+    }
+  }
+
+  getCombinedRegex(): string {
+    return this.patternGroups.map(group => group.pattern).join('');
   }
 
   escapeRegex(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  testRegex(): void {
-    if (!this.testText || !this.generatedRegex) {
-      this.testMatches = [];
-      return;
-    }
-    
-    try {
-      const regex = new RegExp(this.generatedRegex, 'g');
-      const matches = this.testText.match(regex);
-      this.testMatches = matches || [];
-    } catch (e) {
-      console.error('Invalid regex:', e);
-      this.testMatches = [];
-    }
-  }
-
-  goToStep(step: number): void {
-    if (step === 1) {
-      this.currentStep = 1;
-    } else if (step === 2 && this.sampleText.trim()) {
-      this.processSampleText();
-    } else if (step === 3 && this.selectedPatterns.length > 0) {
-      this.generateRegex();
-      this.currentStep = 3;
-    }
   }
 }

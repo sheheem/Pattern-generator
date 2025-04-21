@@ -1,12 +1,6 @@
 <div class="container-fluid py-3 px-4">
-  <!-- Header -->
-  <div class="row bg-warning rounded px-4 pt-5 pb-2 mb-3">
-    <h1 class="display-3">Pattern validator</h1>
-  </div>
-  
-  <!-- Main Content - Single Step UI -->
   <div class="row">
-    <!-- Left Column: Input and Pattern Selection -->
+    <!-- Left Column -->
     <div class="col-md-6 mb-3">
       <div class="card">
         <div class="card-header bg-light">
@@ -23,168 +17,136 @@
               (input)="onTextInputChange()"></textarea>
           </div>
           <button class="btn btn-primary" [disabled]="!sampleText.trim()" (click)="processSampleText()">
-            Identify Patterns
+            Analyze Text
           </button>
         </div>
       </div>
-      
-      <div *ngIf="processedText.length > 0" class="card mt-3">
-        <div class="card-header bg-light">
-          <h5 class="card-title mb-0">Pattern Selection</h5>
+
+      <!-- Character Analysis Display -->
+      <div  class="card mt-3">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+          <h5 class="card-title mb-0">Character Analysis</h5>
+          <button class="btn btn-sm btn-success" 
+                  [disabled]="!hasSelectedChars()" 
+                  (click)="createNewGroup()">
+            Create Group
+          </button>
         </div>
         <div class="card-body">
-          <div class="text-selection-container mb-3 border rounded p-2">
-            <span *ngFor="let part of processedText; let i = index" 
-                  [class.bg-warning]="part.isPattern" 
-                  [class.border]="part.isPattern"
-                  [class.rounded]="part.isPattern"
-                  [class.p-1]="part.isPattern"
-                  [class.bg-success]="isPatternSelected(i)"
-                  [class.text-white]="isPatternSelected(i)"
-                  [class.cursor-pointer]="part.isPattern"
-                  [class.bg-info]="part.repeatingChars && part.repeatingChars.length > 0"
-                  (click)="part.isPattern && showPatternOptions(i, $event)"
-                  style="display: inline-block; margin: 2px; position: relative;">
-              {{ part.text }}
-              <span *ngIf="part.repeatingChars && part.repeatingChars.length > 0" 
-                    class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
-                R
+          <div class="rg-match-container">
+            <!-- Main Text Display -->
+            <div id="rg_text_display" class="rg-text-display">
+              <span *ngFor="let char of analyzedChars; let i = index" 
+                    class="rg-char"
+                    [class.selected]="isCharSelected(i)"
+                    [class.in-group]="isCharInGroup(i)"
+                    [class.bg-primary]="getCharacterType(i) === 'digit'"
+                    [class.bg-success]="getCharacterType(i) === 'letter'"
+                    [class.bg-warning]="getCharacterType(i) === 'special'"
+                    [class.bg-danger]="isRepeatingChar(i)"
+                    (click)="!isCharInGroup(i) && toggleCharSelection(i)"
+                    [ngStyle]="getCharacterStyle(i)">
+                {{ char }}
               </span>
-              
-              <!-- Pattern options dropdown -->
-              <div *ngIf="activeDropdownIndex === i" class="pattern-dropdown">
-                <div class="card shadow">
-                  <div class="card-body">
-                    <div class="form-check mb-2">
-                      <input type="checkbox" class="form-check-input" id="selectPattern{{i}}" 
-                             [checked]="isPatternSelected(i)"
-                             (change)="togglePattern(i)">
-                      <label class="form-check-label" for="selectPattern{{i}}">
-                        Include in regex
-                      </label>
-                    </div>
-                    
-                    <div class="mb-3" *ngIf="isPatternSelected(i)">
-                      <label class="form-label">Match Type:</label>
-                      <select class="form-select form-select-sm" 
-                              [value]="getPatternOption(i, 'matchType')"
-                              (change)="setPatternOption(i, 'matchType', $event)">
-                        <option value="exact">Exact match</option>
-                        <option value="arbitrary">Arbitrary match</option>
-                      </select>
-                    </div>
-                    
-                    <!-- Repeating Characters Options -->
-                    <div *ngIf="isPatternSelected(i) && part.repeatingChars && part.repeatingChars.length > 0">
-                      <div class="form-check mb-2">
-                        <input type="checkbox" class="form-check-input" id="detectRepeats{{i}}" 
-                              [checked]="getPatternOption(i, 'detectRepeats')"
-                              (change)="setPatternOption(i, 'detectRepeats', $event)">
-                        <label class="form-check-label" for="detectRepeats{{i}}">
-                          Handle repeating characters
-                        </label>
-                      </div>
-                      
-                      <div *ngIf="getPatternOption(i, 'detectRepeats')" class="mb-3">
-                        <label class="form-text text-warning mb-2">
-                          Repeating characters detected: 
-                          <span *ngFor="let rep of part.repeatingChars" class="badge bg-info me-1">
-                            "{{ rep.char }}" × {{ rep.count }}
-                          </span>
-                        </label>
-                        
-                        <label class="form-label">Repeating Character Match:</label>
-                        <select class="form-select form-select-sm"
-                                [value]="getPatternOption(i, 'handleRepeats')"
-                                (change)="setPatternOption(i, 'handleRepeats', $event)">
-                          <option value="exact">Match exact repeating characters</option>
-                          <option value="arbitrary">Match any repeating characters</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    <div class="mb-3" *ngIf="isPatternSelected(i) && (processedText[i].type === 'letters' || processedText[i].type === 'alphanumeric')">
-                      <label class="form-label">Case Sensitivity:</label>
-                      <select class="form-select form-select-sm"
-                              [value]="getPatternOption(i, 'case')"
-                              (change)="setPatternOption(i, 'case', $event)">
-                        <option value="preserve">Preserve case</option>
-                        <option value="uppercase">Uppercase only</option>
-                        <option value="lowercase">Lowercase only</option>
-                        <option value="any">Any case</option>
-                      </select>
-                    </div>
-                    
-                    <div class="mb-3" *ngIf="isPatternSelected(i) && (!part.repeatingChars || !getPatternOption(i, 'detectRepeats'))">
-                      <label class="form-label">Quantifier:</label>
-                      <select class="form-select form-select-sm"
-                              [value]="getPatternOption(i, 'quantifier')"
-                              (change)="setPatternOption(i, 'quantifier', $event)">
-                        <option value="exact">Exact length ({{processedText[i].text.length}})</option>
-                        <option value="oneOrMore">One or more (+)</option>
-                        <option value="zeroOrMore">Zero or more (*)</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div class="card-footer">
-                    <button class="btn btn-sm btn-primary w-100" (click)="closePatternOptions($event)">Done</button>
-                  </div>
-                </div>
-              </div>
-            </span>
+            </div>
           </div>
-          <small class="form-text text-muted">Click on the highlighted patterns to see options. Patterns with repeating characters are marked with an "R" badge.</small>
         </div>
       </div>
-      
-      <div *ngIf="selectedPatterns.length > 0" class="card mt-3">
+
+      <!-- Current Selection Options -->
+      <div *ngIf="hasSelectedChars()" class="card mt-3">
         <div class="card-header bg-light">
-          <h5 class="card-title mb-0">Selected Patterns</h5>
+          <h5 class="card-title mb-0">Current Selection Options</h5>
         </div>
-        <div class="card-body p-0">
-          <ul class="list-group list-group-flush">
-            <li *ngFor="let patternIndex of selectedPatterns" class="list-group-item">
-              <div class="d-flex justify-content-between align-items-center">
-                <div>
-                  <span class="badge bg-primary me-2">{{ processedText[patternIndex].text }}</span>
-                  <small class="text-muted">
-                    <span *ngIf="getPatternOption(patternIndex, 'matchType') === 'exact'">Exact match</span>
-                    <span *ngIf="getPatternOption(patternIndex, 'matchType') === 'arbitrary'">Arbitrary match</span>
-                    <span *ngIf="processedText[patternIndex].type === 'letters' || processedText[patternIndex].type === 'alphanumeric'">
-                      <span *ngIf="getPatternOption(patternIndex, 'case') === 'preserve'"> | Preserve case</span>
-                      <span *ngIf="getPatternOption(patternIndex, 'case') === 'uppercase'"> | Uppercase only</span>
-                      <span *ngIf="getPatternOption(patternIndex, 'case') === 'lowercase'"> | Lowercase only</span>
-                      <span *ngIf="getPatternOption(patternIndex, 'case') === 'any'"> | Any case</span>
-                    </span>
-                    <span *ngIf="processedText[patternIndex].repeatingChars && getPatternOption(patternIndex, 'detectRepeats')">
-                      <span *ngIf="getPatternOption(patternIndex, 'handleRepeats') === 'exact'"> | Exact repeats</span>
-                      <span *ngIf="getPatternOption(patternIndex, 'handleRepeats') === 'arbitrary'"> | Any repeats</span>
-                    </span>
-                  </small>
-                </div>
-                <div>
-                  <button class="btn btn-sm btn-outline-primary me-1" (click)="showPatternOptions(patternIndex, $event)">
-                    Edit
-                  </button>
-                  <button class="btn btn-sm btn-outline-danger" (click)="togglePattern(patternIndex)">
-                    Remove
-                  </button>
-                </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label">Pattern Type:</label>
+            <select class="form-select" [(ngModel)]="currentPatternType" (change)="updatePattern()">
+              <option value="exact">Exact Characters</option>
+              <option value="repeating">Repeating Characters</option>
+              <option value="type">Character Type</option>
+            </select>
+          </div>
+
+          <div class="mb-3" *ngIf="currentPatternType === 'type'">
+            <label class="form-label">Match:</label>
+            <select class="form-select" [(ngModel)]="currentMatchType" (change)="updatePattern()">
+              <option value="digit">Digits</option>
+              <option value="letter">Letters</option>
+              <option value="alphanumeric">Alphanumeric</option>
+              <option value="any">Any Character</option>
+            </select>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Quantifier:</label>
+            <select class="form-select" [(ngModel)]="currentQuantifier" (change)="updatePattern()">
+              <option value="exact">Exact Count</option>
+              <option value="oneOrMore">One or More (+)</option>
+              <option value="zeroOrMore">Zero or More (*)</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+
+          <div class="mb-3" *ngIf="currentQuantifier === 'custom'">
+            <div class="row">
+              <div class="col">
+                <label class="form-label">Min</label>
+                <input type="number" class="form-control" [(ngModel)]="quantifierMin" (change)="updatePattern()">
               </div>
-            </li>
-          </ul>
+              <div class="col">
+                <label class="form-label">Max</label>
+                <input type="number" class="form-control" [(ngModel)]="quantifierMax" (change)="updatePattern()">
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
-    
-    <!-- Right Column: Options and Generated Results -->
+
+    <!-- Right Column -->
     <div class="col-md-6">
+      <!-- Created Groups -->
       <div class="card mb-3">
         <div class="card-header bg-light">
-          <h5 class="card-title mb-0">Generated Regular Expression</h5>
+          <h5 class="card-title mb-0">Pattern Groups</h5>
         </div>
         <div class="card-body">
-          <div *ngIf="generatedRegex" class="bg-light border rounded p-2 font-monospace mb-3">{{ generatedRegex }}</div>
+          <div *ngIf="patternGroups.length === 0" class="text-muted">
+            No groups created yet. Select characters and click "Create Group" to start.
+          </div>
+          <div *ngFor="let group of patternGroups; let i = index" class="pattern-group mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <span class="badge bg-primary">Group {{ i + 1 }}</span>
+              <div class="btn-group">
+                <button class="btn btn-sm btn-outline-primary" (click)="editGroup(i)">Edit</button>
+                <button class="btn btn-sm btn-outline-danger" (click)="removeGroup(i)">Remove</button>
+              </div>
+            </div>
+            <div class="pattern-preview p-2 bg-light rounded">
+              <small class="text-muted d-block mb-1">Pattern:</small>
+              <code>{{ group.pattern }}</code>
+              <small class="text-muted d-block mt-2">Matches:</small>
+              <span class="badge bg-secondary me-1" *ngFor="let match of group.matches">
+                {{ match }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Final Regex -->
+      <div class="card">
+        <div class="card-header bg-light">
+          <h5 class="card-title mb-0">Complete Regular Expression</h5>
+        </div>
+        <div class="card-body">
+          <div *ngIf="patternGroups.length > 0" class="bg-light border rounded p-2 font-monospace mb-3">
+            {{ getCombinedRegex() }}
+          </div>
+          <div *ngIf="patternGroups.length === 0" class="text-muted">
+            Create pattern groups to generate the complete regular expression
+          </div>
         </div>
       </div>
     </div>
