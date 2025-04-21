@@ -16,7 +16,7 @@ interface PatternGroup {
 }
 
 interface PatternOptions {
-  patternType: 'exact' | 'repeating' | 'type';
+  patternType: 'exact'  | 'type';
   matchType: 'digit' | 'letter' | 'alphanumeric' | 'any';
   quantifier: 'exact' | 'oneOrMore' | 'zeroOrMore' | 'custom';
   minRepeat?: number;
@@ -51,7 +51,7 @@ export class AppComponent implements OnInit {
   patternGroups: PatternGroup[] = [];
 
   // Pattern Options
-  currentPatternType: 'exact' | 'repeating' | 'type' = 'exact';
+  currentPatternType: 'exact' | 'type' = 'exact';
   currentMatchType: 'digit' | 'letter' | 'alphanumeric' | 'any' = 'any';
   currentQuantifier: 'exact' | 'oneOrMore' | 'zeroOrMore' | 'custom' = 'exact';
   quantifierMin: number = 1;
@@ -206,8 +206,6 @@ export class AppComponent implements OnInit {
       pattern = selectedIndices
         .map(i => this.escapeRegex(this.analyzedChars[i]))
         .join('');
-    } else if (this.currentPatternType === 'repeating') {
-      pattern = `(${this.escapeRegex(this.analyzedChars[selectedIndices[0]])})\\1+`;
     } else {
       let charClass = '';
       switch (this.currentMatchType) {
@@ -243,9 +241,7 @@ export class AppComponent implements OnInit {
       pattern = selectedIndices
         .map(i => this.escapeRegex(this.analyzedChars[i]))
         .join('');
-    } else if (this.currentPatternType === 'repeating') {
-      pattern = `(${this.escapeRegex(this.analyzedChars[selectedIndices[0]])})\\1+`;
-    } else {
+    }  else {
       let charClass = '';
       switch (this.currentMatchType) {
         case 'digit': charClass = '\\d'; break;
