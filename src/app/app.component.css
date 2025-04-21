@@ -59,6 +59,39 @@ textarea {
   font-family: monospace;
 }
 
+.text-display-wrapper {
+  position: relative;
+  margin-top: 20px;
+}
+
+.segment-indicators {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  right: 0;
+  height: 16px;
+}
+
+.segment-indicator {
+  position: absolute;
+  height: 100%;
+  border-radius: 3px;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.segment-indicator:hover {
+  opacity: 0.8;
+}
+
+.segment-type {
+  position: absolute;
+  top: -15px;
+  left: 2px;
+  font-size: 0.7em;
+  color: #666;
+}
+
 .rg-text-display {
   padding: 10px;
   white-space: pre-wrap;
@@ -91,12 +124,10 @@ textarea {
 .bg-primary { background-color: rgba(0, 123, 255, 0.2) !important; }
 .bg-success { background-color: rgba(40, 167, 69, 0.2) !important; }
 .bg-warning { background-color: rgba(255, 193, 7, 0.2) !important; }
-.bg-danger { background-color: rgba(220, 53, 69, 0.2) !important; }
 
 .selected.bg-primary { background-color: rgba(0, 123, 255, 0.5) !important; }
 .selected.bg-success { background-color: rgba(40, 167, 69, 0.5) !important; }
 .selected.bg-warning { background-color: rgba(255, 193, 7, 0.5) !important; }
-.selected.bg-danger { background-color: rgba(220, 53, 69, 0.5) !important; }
 
 .pattern-preview {
   font-size: 0.9em;

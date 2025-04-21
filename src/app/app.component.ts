@@ -1,12 +1,12 @@
 import { Component, OnInit } from '@angular/core';
 
-interface CharacterAnalysis {
-  char: string;
-  type: 'digit' | 'letter' | 'special';
-  isRepeating: boolean;
-  selected: boolean;
-  position: number;
+interface CharacterSegment {
+  text: string;
+  start: number;
+  end: number;
+  type: 'letters' | 'digits' | 'special';
 }
+
 
 interface PatternGroup {
   pattern: string;
@@ -49,6 +49,8 @@ export class AppComponent implements OnInit {
   generatedRegex: string = '';
 
   patternGroups: PatternGroup[] = [];
+  characterSegments: CharacterSegment[] = [];
+  selectionMode: 'individual' | 'group' = 'individual';
 
   // Pattern Options
   currentPatternType: 'exact' | 'repeating' | 'type' = 'exact';
@@ -72,6 +74,7 @@ export class AppComponent implements OnInit {
     this.selectedChars.clear();
     this.patternGroups = [];
     this.editingGroupIndex = null;
+    this.identifyCharacterSegments();
   }
 
   
@@ -144,11 +147,30 @@ export class AppComponent implements OnInit {
     this.recognizedPatterns = patterns;
   }
 
+ 
+
   toggleCharSelection(index: number): void {
-    if (this.selectedChars.has(index)) {
-      this.selectedChars.delete(index);
+    if (this.selectionMode === 'individual') {
+      if (this.selectedChars.has(index)) {
+        this.selectedChars.delete(index);
+      } else if (!this.isCharInGroup(index)) {
+        this.selectedChars.add(index);
+      }
     } else {
-      this.selectedChars.add(index);
+      // Group selection mode
+      const segment = this.findAvailableSegment(index);
+      if (segment) {
+        const allSelected = this.isSegmentFullySelected(segment);
+        for (let i = segment.start; i < segment.end; i++) {
+          if (!this.isCharInGroup(i)) { // Only select if not already in a group
+            if (allSelected) {
+              this.selectedChars.delete(i);
+            } else {
+              this.selectedChars.add(i);
+            }
+          }
+        }
+      }
     }
   }
   isCharSelected(index: number): boolean {
@@ -161,13 +183,12 @@ export class AppComponent implements OnInit {
 
 
 
-  getCharacterType(index: number): 'digit' | 'letter' | 'special' {
+  getCharacterType(index: number): 'letters' | 'digits' | 'special' {
     const char = this.analyzedChars[index];
-    if (/\d/.test(char)) return 'digit';
-    if (/[a-zA-Z]/.test(char)) return 'letter';
+    if (/\d/.test(char)) return 'digits';
+    if (/[a-zA-Z]/.test(char)) return 'letters';
     return 'special';
   }
-
   isRepeatingChar(index: number): boolean {
     if (index === 0) return this.analyzedChars[0] === this.analyzedChars[1];
     if (index === this.analyzedChars.length - 1) {
@@ -271,6 +292,7 @@ export class AppComponent implements OnInit {
 
     return pattern;
   }
+ 
 
   createNewGroup(): void {
     if (this.selectedChars.size === 0) return;
@@ -301,6 +323,8 @@ export class AppComponent implements OnInit {
 
     this.selectedChars.clear();
     this.resetOptions();
+    // Refresh the available segments
+    this.identifyCharacterSegments();
   }
 
   resetOptions(): void {
@@ -345,4 +369,98 @@ export class AppComponent implements OnInit {
   escapeRegex(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
+
+
+  identifyCharacterSegments(): void {
+    this.characterSegments = [];
+    let currentSegment: CharacterSegment | null = null;
+    
+    for (let i = 0; i < this.analyzedChars.length; i++) {
+      // Skip if character is already in a group
+      if (this.isCharInGroup(i)) {
+        if (currentSegment) {
+          this.characterSegments.push(currentSegment);
+          currentSegment = null;
+        }
+        continue;
+      }
+
+      const char = this.analyzedChars[i];
+      const type = this.getCharacterType(i);
+      
+      if (!currentSegment || currentSegment.type !== type) {
+        if (currentSegment) {
+          this.characterSegments.push(currentSegment);
+        }
+        currentSegment = {
+          text: char,
+          start: i,
+          end: i + 1,
+          type: type
+        };
+      } else {
+        currentSegment.text += char;
+        currentSegment.end = i + 1;
+      }
+    }
+    
+    if (currentSegment) {
+      this.characterSegments.push(currentSegment);
+    }
+  }
+
+ 
+
+  isSegmentFullySelected(segment: CharacterSegment): boolean {
+    for (let i = segment.start; i < segment.end; i++) {
+      if (!this.selectedChars.has(i)) return false;
+    }
+    return true;
+  }
+
+  getSegmentClass(segment: CharacterSegment): string {
+    const baseClass = 'segment-indicator';
+    const typeClass = segment.type === 'digits' ? 'bg-primary' : 
+                     segment.type === 'letters' ? 'bg-success' : 'bg-warning';
+    return `${baseClass} ${typeClass}`;
+  }
+
+
+
+  findAvailableSegment(index: number): CharacterSegment | null {
+    // Find the current character type
+    const currentType = this.getCharacterType(index);
+    
+    // Find start of available sequence
+    let start = index;
+    while (start > 0 && 
+           this.getCharacterType(start - 1) === currentType && 
+           !this.isCharInGroup(start - 1)) {
+      start--;
+    }
+    
+    // Find end of available sequence
+    let end = index;
+    while (end < this.analyzedChars.length && 
+           this.getCharacterType(end) === currentType && 
+           !this.isCharInGroup(end)) {
+      end++;
+    }
+    
+    // Only create segment if there are available characters
+    if (start === end) return null;
+    
+    return {
+      text: this.analyzedChars.slice(start, end).join(''),
+      start,
+      end,
+      type: currentType
+    };
+  }
+
+ 
+
+  // Update this method to refresh segments after group changes
+ 
+
 }

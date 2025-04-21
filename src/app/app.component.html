@@ -23,54 +23,85 @@
       </div>
 
       <!-- Character Analysis Display -->
-      <div  class="card mt-3">
+      <div *ngIf="analyzedChars.length > 0" class="card mt-3">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
           <h5 class="card-title mb-0">Character Analysis</h5>
-          <button class="btn btn-sm btn-success" 
-                  [disabled]="!hasSelectedChars()" 
-                  (click)="createNewGroup()">
-            Create Group
-          </button>
+          <div>
+            <div class="btn-group me-2">
+              <button class="btn btn-sm" 
+                      [class.btn-primary]="selectionMode === 'individual'"
+                      [class.btn-outline-primary]="selectionMode !== 'individual'"
+                      (click)="selectionMode = 'individual'">
+                Individual Selection
+              </button>
+              <button class="btn btn-sm" 
+                      [class.btn-primary]="selectionMode === 'group'"
+                      [class.btn-outline-primary]="selectionMode !== 'group'"
+                      (click)="selectionMode = 'group'">
+                Group Selection
+              </button>
+            </div>
+            <button class="btn btn-sm btn-success" 
+                    [disabled]="!hasSelectedChars()" 
+                    (click)="createNewGroup()">
+              Create Pattern
+            </button>
+          </div>
         </div>
         <div class="card-body">
           <div class="rg-match-container">
-            <!-- Main Text Display -->
-            <div id="rg_text_display" class="rg-text-display">
-              <span *ngFor="let char of analyzedChars; let i = index" 
-                    class="rg-char"
-                    [class.selected]="isCharSelected(i)"
-                    [class.in-group]="isCharInGroup(i)"
-                    [class.bg-primary]="getCharacterType(i) === 'digit'"
-                    [class.bg-success]="getCharacterType(i) === 'letter'"
-                    [class.bg-warning]="getCharacterType(i) === 'special'"
-                    [class.bg-danger]="isRepeatingChar(i)"
-                    (click)="!isCharInGroup(i) && toggleCharSelection(i)"
-                    [ngStyle]="getCharacterStyle(i)">
-                {{ char }}
-              </span>
+            <!-- Character Display with Group Indicators -->
+            <div class="text-display-wrapper position-relative">
+              <!-- Group Segment Indicators -->
+              <div class="segment-indicators" *ngIf="selectionMode === 'group'">
+                <div *ngFor="let segment of characterSegments" 
+                     [class]="getSegmentClass(segment)"
+                     [style.left.ch]="segment.start"
+                     [style.width.ch]="segment.end - segment.start">
+                  <small class="segment-type">{{ segment.type }}</small>
+                </div>
+              </div>
+              
+              <!-- Main Text Display -->
+              <div id="rg_text_display" class="rg-text-display">
+                <span *ngFor="let char of analyzedChars; let i = index" 
+                      class="rg-char"
+                      [class.selected]="isCharSelected(i)"
+                      [class.in-group]="isCharInGroup(i)"
+                      [class.bg-primary]="getCharacterType(i) === 'digits'"
+                      [class.bg-success]="getCharacterType(i) === 'letters'"
+                      [class.bg-warning]="getCharacterType(i) === 'special'"
+                      (click)="!isCharInGroup(i) && toggleCharSelection(i)">
+                  {{ char }}
+                </span>
+              </div>
             </div>
           </div>
+          <small class="text-muted mt-2 d-block">
+            {{ selectionMode === 'group' ? 
+              'Click on character groups to select all similar characters' : 
+              'Click individual characters to select them' }}
+          </small>
         </div>
       </div>
 
-      <!-- Current Selection Options -->
+      <!-- Pattern Options -->
       <div *ngIf="hasSelectedChars()" class="card mt-3">
         <div class="card-header bg-light">
-          <h5 class="card-title mb-0">Current Selection Options</h5>
+          <h5 class="card-title mb-0">Pattern Options</h5>
         </div>
         <div class="card-body">
           <div class="mb-3">
             <label class="form-label">Pattern Type:</label>
             <select class="form-select" [(ngModel)]="currentPatternType" (change)="updatePattern()">
-              <option value="exact">Exact Characters</option>
-              <option value="repeating">Repeating Characters</option>
+              <option value="exact">Exact Match</option>
               <option value="type">Character Type</option>
             </select>
           </div>
 
           <div class="mb-3" *ngIf="currentPatternType === 'type'">
             <label class="form-label">Match:</label>
-            <select class="form-select" [(ngModel)]="currentMatchType" (change)="updatePattern()">
+            <select class="form-select" [(ngModel)]="currentMatchType">
               <option value="digit">Digits</option>
               <option value="letter">Letters</option>
               <option value="alphanumeric">Alphanumeric</option>
@@ -80,7 +111,7 @@
 
           <div class="mb-3">
             <label class="form-label">Quantifier:</label>
-            <select class="form-select" [(ngModel)]="currentQuantifier" (change)="updatePattern()">
+            <select class="form-select" [(ngModel)]="currentQuantifier">
               <option value="exact">Exact Count</option>
               <option value="oneOrMore">One or More (+)</option>
               <option value="zeroOrMore">Zero or More (*)</option>
@@ -92,11 +123,11 @@
             <div class="row">
               <div class="col">
                 <label class="form-label">Min</label>
-                <input type="number" class="form-control" [(ngModel)]="quantifierMin" (change)="updatePattern()">
+                <input type="number" class="form-control" [(ngModel)]="quantifierMin">
               </div>
               <div class="col">
                 <label class="form-label">Max</label>
-                <input type="number" class="form-control" [(ngModel)]="quantifierMax" (change)="updatePattern()">
+                <input type="number" class="form-control" [(ngModel)]="quantifierMax">
               </div>
             </div>
           </div>
@@ -113,7 +144,7 @@
         </div>
         <div class="card-body">
           <div *ngIf="patternGroups.length === 0" class="text-muted">
-            No groups created yet. Select characters and click "Create Group" to start.
+            No groups created yet. Select characters to start.
           </div>
           <div *ngFor="let group of patternGroups; let i = index" class="pattern-group mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
