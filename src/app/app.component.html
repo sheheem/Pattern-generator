@@ -53,14 +53,14 @@
             <!-- Character Display with Group Indicators -->
             <div class="text-display-wrapper position-relative">
               <!-- Group Segment Indicators -->
-              <div class="segment-indicators" *ngIf="selectionMode === 'group'">
+              <!-- <div class="segment-indicators" *ngIf="selectionMode === 'group'">
                 <div *ngFor="let segment of characterSegments" 
                      [class]="getSegmentClass(segment)"
                      [style.left.ch]="segment.start"
                      [style.width.ch]="segment.end - segment.start">
                   <small class="segment-type">{{ segment.type }}</small>
                 </div>
-              </div>
+              </div> -->
               
               <!-- Main Text Display -->
               <div id="rg_text_display" class="rg-text-display">
